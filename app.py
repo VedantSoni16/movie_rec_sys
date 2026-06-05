@@ -16,21 +16,15 @@ app = FastAPI(
 MODEL_PATH = "best_lstm_weights.pth"
 VOCAB_SIZE = 3417  # Your verified MovieLens dataset vocabulary size
 
-# Load original MovieLens raw lookup dictionary directly into backend memory
+# Load the EXACT synchronized mapping file into backend memory
 try:
-    movies_df = pd.read_csv(
-        'data/raw/movies.dat', 
-        sep='::', 
-        engine='python', 
-        names=['movie_id', 'title', 'genres'], 
-        encoding='latin-1'
-    )
-    # The trained model output IDs correspond to the literal row positions or original indices
-    RAW_MOVIE_LOOKUP = pd.Series(movies_df.title.values, index=movies_df.movie_id).to_dict()
-    print(f"[✓] Backend raw title dictionary loaded successfully: {len(RAW_MOVIE_LOOKUP)} entries.")
+    df_map = pd.read_csv('data/raw/movie_to_tokens.csv')
+    # Create a direct lookup: {token_id: "Movie Title"}
+    TOKEN_TO_TITLE = pd.Series(df_map.title.values, index=df_map.token_id).to_dict()
+    print(f"[✓] Backend token translation map loaded successfully: {len(TOKEN_TO_TITLE)} entries.")
 except Exception as e:
-    print(f"[!] Warning: Could not load raw movies.dat in backend: {e}")
-    RAW_MOVIE_LOOKUP = {}
+    print(f"[!] Warning: Could not load movie_to_tokens.csv in backend: {e}")
+    TOKEN_TO_TITLE = {}
 
 # 1. Initialize the architecture shape and load frozen weights onto CPU
 try:
@@ -82,19 +76,17 @@ async def predict_next_movies(payload: RecommendationRequest):
     # Extract attention weights, squeezing batch dims to map directly over the 50 steps
     attention_scores = attention_weights.squeeze(0).squeeze(-1).tolist()
     
-    # NEW STEP: Convert the model's raw token choices into clear, unshifted titles
-    # If a recommended token points directly to an index shift, look up its raw map pair
+    # Translate predicted tokens directly to titles using your exact data loader indexing rules
     translated_recommendations = []
     for token in recommended_ids:
-        # Check if it aligns with raw ID directly, fallback to string token if missing
-        title = RAW_MOVIE_LOOKUP.get(token, RAW_MOVIE_LOOKUP.get(token - 1, f"Movie ID: {token}"))
+        title = TOKEN_TO_TITLE.get(token, f"Unknown Token ID: {token}")
         translated_recommendations.append(title)
         
     # 7. Construct and return clean JSON response payload
     return {
         "input_history_depth": len(tokens),
         "recommended_tokens": recommended_ids,
-        "translated_recommendations": translated_recommendations, # Safe string fallback lane
+        "translated_recommendations": translated_recommendations,
         "attention_weights": attention_scores
     }
 
