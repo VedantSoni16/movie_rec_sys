@@ -2,7 +2,7 @@
 
 An end-to-end, production-grade sequential recommendation ecosystem designed to capture a user's evolving preferences across time rather than relying on static historic profiles. Built over the definitive **MovieLens-1M benchmark dataset**, the system frames a user's watch history as an explicit, chronological trajectory. It leverages a custom **2-Layer Stacked LSTM coupled with a parametric Bahdanau (Additive) Attention Mechanism** to predict the next target interaction while exposing real-time visual metrics of its internal state weight distribution.
 
-This repository bridges deep learning abstraction and practical engineering by pairing a containerized **FastAPI inference microservice** with an interactive **Streamlit web application dashboard**.
+This repository bridges the gap between deep learning abstraction and practical engineering by pairing a containerized **FastAPI inference microservice** with an interactive **Streamlit web application dashboard**.
 
 ---
 
@@ -28,7 +28,32 @@ The tokens are mapped into a dense continuous embedding matrix, contextualized v
 
 The project codebase is organized into modular engineering blocks as shown below:
 
-SEQ_REC/│├── data/                                 # Storage workspace for dataset tiers│   └── raw/                              # Source MovieLens records & map files│       ├── movies.dat                    # Raw movie metadata (ID::Title::Genres)│       └── movie_to_tokens.csv           # Aligned vocabulary tracking map│├── src/                                  # Internal Core Architecture Modules│   ├── init.py                       # Package boundary initializer│   ├── data_loader.py                    # Core filtering & leave-one-out generator│   ├── evaluate.py                       # Pool metrics evaluator (Recall@10, NDCG@10)│   ├── explain.py                        # Terminal-side XAI diagnostic engine│   ├── models.py                         # PyTorch classes (Bahdanau Attention, LSTM, GRU)│   ├── train.py                          # Multi-loss optimization training trainer│   └── word2vec.py                       # Pre-training Skip-Gram initialization logic│├── app.py                                # Containerized FastAPI deployment code├── Dockerfile                            # Docker image construction blueprint├── frontend.py                           # Interactive Streamlit web interface├── generate_map.py                       # Vocabulary alignment script├── best_lstm_weights.pth                 # Frozen optimal network checkpoint weights├── best_gru_weights.pth                  # Alternative baseline network weights├── requirements.txt                      # Project library lockfile└── runtime.txt                           # Cloud python engine configuration
+SEQ_REC/
+│
+├── data/                                 # Storage workspace for dataset tiers
+│   └── raw/                              # Source MovieLens records & map files
+│       ├── movies.dat                    # Raw movie metadata (ID::Title::Genres)
+│       └── movie_to_tokens.csv           # Aligned vocabulary tracking map
+│
+├── src/                                  # Internal Core Architecture Modules
+│   ├── init.py                       # Package boundary initializer
+│   ├── data_loader.py                    # Core filtering & leave-one-out generator
+│   ├── evaluate.py                       # Pool metrics evaluator (Recall@10, NDCG@10)
+│   ├── explain.py                        # Terminal-side XAI diagnostic engine
+│   ├── models.py                         # PyTorch classes (Bahdanau Attention, LSTM, GRU)
+│   ├── train.py                          # Multi-loss optimization training trainer
+│   └── word2vec.py                       # Pre-training Skip-Gram initialization logic
+│
+├── app.py                                # Containerized FastAPI deployment code
+├── Dockerfile                            # Docker image construction blueprint
+├── frontend.py                           # Interactive Streamlit web interface
+├── generate_map.py                       # Vocabulary alignment script
+├── best_lstm_weights.pth                 # Frozen optimal network checkpoint weights
+├── best_gru_weights.pth                  # Alternative baseline network weights
+├── requirements.txt                      # Project library lockfile
+└── runtime.txt                           # Cloud python engine configuration
+
+
 ---
 
 ## 🛠️ Machine Learning Model Architectures
@@ -84,7 +109,15 @@ The trainer framework (`src/train.py`) employs a highly sophisticated training l
 
 To evaluate model accuracy under real-world conditions, `src/evaluate.py` runs a 100-item pool evaluation routine. For each test user, the system combines the true target item with 99 random unviewed negative items. The combined pool is then processed through the network to generate ranking metrics:
 
-FINAL BENCHMARK SCORECARD:Model NameRecall@10NDCG@10MRR@10Recall@50Random Chance (theoretical)0.10000.03120.02930.5000Word2Vec Baseline0.28430.17410.14120.6932GRU4Rec0.61200.42190.38430.8841LSTM + Attention (ours)0.68410.49120.43120.9314
+### Final Benchmark Scorecard
+
+| Model Name | Recall@10 | NDCG@10 | MRR@10 | Recall@50 |
+| :--- | :---: | :---: | :---: | :---: |
+| **Random Chance (theoretical)** | 0.1000 | 0.0312 | 0.0293 | 0.5000 |
+| **Word2Vec Baseline** | 0.2843 | 0.1741 | 0.1412 | 0.6932 |
+| **GRU4Rec** | 0.6120 | 0.4219 | 0.3843 | 0.8841 |
+| **LSTM + Attention (ours)** | **0.6841** | **0.4912** | **0.4312** | **0.9314** |
+
 * **Recall@10 / Recall@50:** Measures the percentage of times the true next item appears within the model's top 10 or top 50 choices.
 * **NDCG@10 (Normalized Discounted Cumulative Gain):** Rewards the model for placing the correct movie higher up in the ranking slots.
 * **MRR@10 (Mean Reciprocal Rank):** Evaluates the position of the first relevant recommendation.
@@ -117,4 +150,25 @@ COPY data/raw/movie_to_tokens.csv data/raw/movie_to_tokens.csv
 EXPOSE 10000
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "10000"]
-2. Operationalizing the Web Application Dashboard (frontend.py)The client app acts as a zero-state frontend layer. It captures live chronological watch data entered by the user, serializes the input values into a JSON array, and issues an HTTP POST request to the Docker container endpoint.Once the container processes the request and sends back a response, the frontend extracts the pre-translated title strings and maps the attention distribution arrays into a beautiful Seaborn horizontal chart.🎬 Live Sample Evaluation TracksTest the application's contextual awareness by inputting these curated viewing sequences:The 90s Psychological Thriller TrackTimeline Sequence: Seven (Se7en) (1995) ➔ Usual Suspects, The (1995) ➔ Silence of the Lambs, The (1991) ➔ Pulp Fiction (1994) ➔ Fargo (1996) ➔ L.A. Confidential (1997)Expected Result: The network identifies the dark, cinematic tone and predicts classic neo-noir or psychological crime movies (e.g., Fight Club, GoodFellas, Reservoir Dogs).The Golden-Era Animation TrackTimeline Sequence: Toy Story (1995) ➔ Aladdin (1992) ➔ Lion King, The (1994) ➔ Beauty and the Beast (1991) ➔ Bug's Life, A (1998)Expected Result: The hidden states reflect family-friendly animated classics, outputting sibling Disney or Pixar blockbusters from that specific release window (e.g., Toy Story 2, Mulan, Tarzan).📊 Explainable AI (XAI) Visualization LayerA standout feature of this system is its inherent explainability. Rather than operating as an opaque "black-box" model, the application directly exposes the attention values computed by the Bahdanau Attention Layer.When the user requests recommendations, the interface displays an active horizontal chart mapping exactly how much weight the network allocated to each movie in the user's history. This allows stakeholders to instantly see why a particular movie was recommended, making the engine highly transparent and auditable for production use.
+2. Operationalizing the Web Application Dashboard (frontend.py)
+The client app acts as a zero-state frontend layer. It captures live chronological watch data entered by the user, serializes the input values into a JSON array, and issues an HTTP POST request to the Docker container endpoint.
+
+Once the container processes the request and sends back a response, the frontend extracts the pre-translated title strings and maps the attention distribution arrays into a beautiful Seaborn horizontal chart.
+
+🧪 Live Sample Evaluation Tracks
+Test the application's contextual awareness by inputting these curated viewing sequences into the active timeline:
+
+The 90s Psychological Thriller Track
+Timeline Sequence: Seven (Se7en) (1995) ➔ Usual Suspects, The (1995) ➔ Silence of the Lambs, The (1991) ➔ Pulp Fiction (1994) ➔ Fargo (1996) ➔ L.A. Confidential (1997)
+
+Expected Result: The network identifies the dark, cinematic tone and predicts classic neo-noir or psychological crime movies (e.g., Fight Club, GoodFellas, Reservoir Dogs).
+
+The Golden-Era Animation Track
+Timeline Sequence: Toy Story (1995) ➔ Aladdin (1992) ➔ Lion King, The (1994) ➔ Beauty and the Beast (1991) ➔ Bug's Life, A (1998)
+
+Expected Result: The hidden states reflect family-friendly animated classics, outputting sibling Disney or Pixar masterpieces from that specific release window (e.g., Toy Story 2, Mulan, Tarzan).
+
+📊 Explainable AI (XAI) Visualization Layer
+A standout feature of this system is its inherent explainability. Rather than operating as an opaque "black-box" model, the application directly exposes the attention values computed by the Bahdanau Attention Layer.
+
+When the user requests recommendations, the interface displays an active horizontal chart mapping exactly how much weight the network allocated to each movie in the user's history. This allows stakeholders to instantly see why a particular movie was recommended, making the engine highly transparent and auditable for production use.
