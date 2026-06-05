@@ -18,7 +18,7 @@ The tokens are mapped into a dense continuous embedding matrix, contextualized v
 
 ### Production Stack Layout
 * **Data Engineering Pipeline:** Implements an iterative, stabilized $K$-core filtering mechanism ($K \ge 5$) to weed out sparse matrix noise, generating robust sequential item tokens.
-* **Deep Learning Framework:** A complete PyTorch model containing a dense embedding block, a 2-layer LSTM body, an custom Additive Attention module, and an explicit layer normalization step.
+* **Deep Learning Framework:** A complete PyTorch model containing a dense embedding block, a 2-layer LSTM body, a custom Additive Attention module, and an explicit layer normalization step.
 * **FastAPI Inference Gateway:** A production web API server wrapped in Docker that loads frozen weights, handles absolute environment pathing to counter runtime errors, and isolates evaluation tensors safely under no-grad contexts.
 * **Streamlit Explainer Interface:** A visual dashboard allowing users to build live chronological timelines, interact with cloud container services via REST payloads, and view post-hoc Explainable AI charts.
 
@@ -61,14 +61,14 @@ SEQ_REC/
 The system includes multiple sequence modeling components built cleanly from scratch using `torch.nn` primitives:
 
 ### 1. Stacked LSTM with Additive Attention (`src/models.py`)
-This is the primary production architecture. It runs item sequences through a learned 64-dimensional embedding layer before feeding them into two stacked recurrent layers configured with a 0.3 dropout threshold to mitigate variance. Hidden hidden states pass through a `LayerNorm` component to normalize features before being processed by the custom attention layer.
+This is the primary production architecture. It runs item sequences through a learned 64-dimensional embedding layer before feeding them into two stacked recurrent layers configured with a 0.3 dropout threshold to mitigate variance. Hidden states pass through a `LayerNorm` component to normalize features before being processed by the custom attention layer.
 
 ### 2. Bahdanau (Additive) Attention (`src/models.py`)
 Unlike dot-product attention variants, this network implements a multi-layer perceptron to score the temporal relationships between hidden historical states ($h_t$) and the current sequence query vector ($q$):
 
 $$\text{Score}(h_t, q) = V^{\top} \tanh(W_h h_t + W_q q)$$
 
-* **Optimization Safeguards:** Incorporates strict `padding_mask` injection to set empty padding elements (Index `0`) to $-\infty$ ($10^{-9}$), ensuring unviewed slots receive a clean zero-weight ceiling during softmax mapping.
+* **Optimization Safeguards:** Incorporates strict `padding_mask` injection to set empty padding elements (Index `0`) to $-\infty$ ($-1\text{e}9$), ensuring unviewed slots receive a clean zero-weight ceiling during softmax mapping.
 * **Temperature Scaling:** Implements temperature-scaled scores divided by a custom factor ($0.1 \times \sqrt{d}$) to sharpen activation probabilities.
 
 ### 3. Baseline Contenders (`src/models.py`, `src/word2vec.py`)
@@ -98,7 +98,7 @@ Because the filtered core reduces the active dataset vocabulary to exactly **3,4
 
 The trainer framework (`src/train.py`) employs a highly sophisticated training loop to fine-tune the attention network.
 
-* **Hybrid Objective Function:** Combines traditional categorical **Cross-Entropy Loss** with a custom **BPR (Bayesian Personalized Ranking) Loss**. The system stochastically samples 100 negative interaction targets per batch step to explicitly train the classification layer to rank positive user intent higher than random negatives.
+* **Hybrid Objective Function:** Combines traditional categorical **Cross-Entropy Loss** with a custom **BPR (Bayesian Personalized Ranking) Loss**. The system stochastically samples negative interaction targets per batch step to explicitly train the classification layer to rank positive user intent higher than random negatives.
 * **Stochastic Isolation on Validation:** While training mixes both losses, validation loops use Cross-Entropy exclusively, stripping out BPR stochastic sampling noise to provide a clear, reliable early-stopping signal.
 * **Gradient Management:** Integrates explicit L2 gradient norm clipping capped at `1.0` to eliminate exploding gradient issues common when backpropagating through long recurrent networks.
 * **Gradual Embedding Unfreezing:** The model initializes with frozen word-embedding vectors. At epoch 6, the training loop dynamically triggers gradual unfreezing, activating the embedding parameter weights with a controlled learning rate ($10^{-4}$), while using a Cosine Annealing learning rate scheduler across remaining model parameters.
@@ -107,16 +107,16 @@ The trainer framework (`src/train.py`) employs a highly sophisticated training l
 
 ## 📈 Evaluation & Benchmark Performance Scorecard
 
-To evaluate model accuracy under real-world conditions, `src/evaluate.py` runs a 100-item pool evaluation routine. For each test user, the system combines the true target item with 99 random unviewed negative items. The combined pool is then processed through the network to generate ranking metrics:
+To evaluate model accuracy under real-world conditions, `src/evaluate.py` runs a 100-item pool evaluation routine. For each test user, the system combines the true target item with 99 random unviewed negative items. The combined pool is processed through the networks to yield empirical score performance:
 
 ### Final Benchmark Scorecard
 
 | Model Name | Recall@10 | NDCG@10 | MRR@10 | Recall@50 |
 | :--- | :---: | :---: | :---: | :---: |
-| **Random Chance (theoretical)** | 0.1000 | 0.0312 | 0.0293 | 0.5000 |
-| **Word2Vec Baseline** | 0.2843 | 0.1741 | 0.1412 | 0.6932 |
-| **GRU4Rec** | 0.6120 | 0.4219 | 0.3843 | 0.8841 |
-| **LSTM + Attention (ours)** | **0.6841** | **0.4912** | **0.4312** | **0.9314** |
+| **Random Chance (theoretical)** | 0.1000 | 0.0490 | 0.0330 | 0.5000 |
+| **Word2Vec Baseline** | 0.5200 | 0.3160 | 0.2530 | **0.8660** |
+| **GRU4Rec** | 0.3630 | 0.2070 | 0.1600 | 0.8180 |
+| **LSTM + Attention (ours)** | **0.5250** | **0.3240** | **0.2620** | 0.8450 |
 
 * **Recall@10 / Recall@50:** Measures the percentage of times the true next item appears within the model's top 10 or top 50 choices.
 * **NDCG@10 (Normalized Discounted Cumulative Gain):** Rewards the model for placing the correct movie higher up in the ranking slots.
