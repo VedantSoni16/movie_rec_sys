@@ -25,4 +25,5 @@ COPY app.py .
 EXPOSE 8000
 
 # Launch the production ASGI web server to handle requests 24/7
+COPY data/raw/movie_to_tokens.csv data/raw/movie_to_tokens.csv
 CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
