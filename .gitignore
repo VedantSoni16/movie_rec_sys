@@ -1,0 +1,26 @@
+# Python bytecode artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Large Model Weights and Checkpoints (Too heavy for raw Git)
+*.pth
+*.pkl
+*.bin
+
+# Large Raw Datasets
+data/raw/
+data/processed/
+
+# IDE and System Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
