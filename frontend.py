@@ -21,22 +21,42 @@ st.markdown('<div class="main-title">🎬 Explainable AI (XAI) Sequential Recomm
 st.markdown('<div class="sub-title">A production-grade inference engine displaying sharp historical attention tracks over the MovieLens-1M benchmark.</div>', unsafe_allow_html=True)
 st.markdown("---")
 
-# Strict, high-signal dictionary mapping directly corresponding to your test token vectors
-MOVIE_LOOKUP = {
-    1069: "Mulan (1998)",
-    862: "Hercules (1997)",
-    1979: "Hunchback of Notre Dame, The (1996)",
-    1520: "Antz (1998)",
-    2926: "Bug's Life, A (1998)",
-    1008: "Aladdin (1992)",
-    3412: "Pocahontas (1995)",
-    3232: "Tarzan (1999)",
-    3078: "Toy Story (1995)",
-    341: "Beauty and the Beast (1991)",
-    105: "Cinderella (1950)"
-}
+
+# --- DYNAMIC VOCABULARY DATA LOADER LAYER ---
+@st.cache_data
+def load_movie_vocabulary():
+    try:
+        # Read the raw MovieLens .dat file from its exact repository folder pathway
+        movies_df = pd.read_csv(
+            'data/raw/movies.dat', 
+            sep='::', 
+            engine='python', 
+            names=['movie_id', 'title', 'genres'], 
+            encoding='latin-1'
+        )
+        # Convert directly to a clean dictionary mapping: {ID: "Title (Year)"}
+        return pd.Series(movies_df.title.values, index=movies_df.movie_id).to_dict()
+    except Exception as e:
+        # Robust safety fallback network containing our primary animation cluster
+        return {
+            1008: "Aladdin (1992)", 
+            2926: "Bug's Life, A (1998)", 
+            1520: "Antz (1998)",
+            1979: "Hunchback of Notre Dame, The (1996)", 
+            862: "Hercules (1997)", 
+            1069: "Mulan (1998)",
+            3412: "Pocahontas (1995)",
+            3232: "Tarzan (1999)",
+            3078: "Toy Story (1995)",
+            341: "Beauty and the Beast (1991)",
+            105: "Cinderella (1950)"
+        }
+
+# Populate vocabulary spaces dynamically
+MOVIE_LOOKUP = load_movie_vocabulary()
 title_to_id = {v: k for k, v in MOVIE_LOOKUP.items()}
 movie_options = sorted(list(MOVIE_LOOKUP.values()))
+
 
 # --- SIDEBAR CONFIGURATION: ORDERED CHRONOLOGICAL TIMELINE ---
 st.sidebar.markdown("### 🕒 User Viewing History Timeline")
@@ -44,6 +64,7 @@ st.sidebar.markdown("Define a strict chronological watch history sequence (oldes
 
 # Maintain an explicit list of selections cleanly via Session State variables
 if "timeline_history" not in st.session_state:
+    # Use animation titles as clean defaults since they exist in both full and fallback modes
     st.session_state.timeline_history = [
         "Aladdin (1992)", 
         "Bug's Life, A (1998)", 
@@ -56,10 +77,13 @@ if "timeline_history" not in st.session_state:
 # Render an explicit, numbered sequential track list for user clarity
 updated_history = []
 for idx, default_val in enumerate(st.session_state.timeline_history):
+    # Fallback to item 0 if a custom entry isn't found in current dictionary space
+    start_idx = movie_options.index(default_val) if default_val in movie_options else 0
+    
     val_choice = st.sidebar.selectbox(
         f"Step {idx+1:02d} (Watched #{idx+1})",
         options=movie_options,
-        index=movie_options.index(default_val) if default_val in movie_options else 0,
+        index=start_idx,
         key=f"step_select_{idx}"
     )
     updated_history.append(val_choice)
@@ -81,11 +105,13 @@ with col_rem:
 st.sidebar.markdown("---")
 trigger_inference = st.sidebar.button("🚀 Generate Recommendations", type="primary", use_container_width=True)
 
+
 # --- MAIN PAGE INFERENCE CONSOLE INTERACTION LAYER ---
 if trigger_inference:
     input_tokens = [title_to_id[title] for title in st.session_state.timeline_history if title in title_to_id]
     
-    backend_url ="https://movie-rec-sys-3yj4.onrender.com/predict"
+    # Live production URL of your container backend service
+    backend_url = "https://movie-rec-sys-3yj4.onrender.com/predict"
     payload = {"movie_history_tokens": input_tokens}
     
     try:
@@ -126,7 +152,14 @@ if trigger_inference:
             })
             
             # Set styled dark background palette context for Seaborn
-            sns.set_theme(style="darkgrid", rc={"axes.facecolor": "#121216", "figure.facecolor": "#0E1117", "text.color": "#FFFFFF", "axes.labelcolor": "#FFFFFF", "xtick.color": "#FFFFFF", "ytick.color": "#FFFFFF"})
+            sns.set_theme(style="darkgrid", rc={
+                "axes.facecolor": "#121216", 
+                "figure.facecolor": "#0E1117", 
+                "text.color": "#FFFFFF", 
+                "axes.labelcolor": "#FFFFFF", 
+                "xtick.color": "#FFFFFF", 
+                "ytick.color": "#FFFFFF"
+            })
             
             fig, ax = plt.subplots(figsize=(11, 4))
             sns.barplot(
@@ -149,6 +182,6 @@ if trigger_inference:
             st.pyplot(fig)
             
     except requests.exceptions.ConnectionError:
-        st.error("Connection Refused. Ensure your FastAPI server module is active and hosting on port 8000.")
+        st.error("Connection Refused. Cloud infrastructure server endpoint failed to respond.")
 else:
     st.info("👈 Use the chronological sidebar panel on the left to set up a movie sequence track, then click Generate Recommendations to inspect inference results.")
