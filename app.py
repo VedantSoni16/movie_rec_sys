@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import torch
 import numpy as np
+import pandas as pd
 from src.models import StackedLSTMWithAttention
 
 app = FastAPI(
@@ -14,6 +15,22 @@ app = FastAPI(
 # Global configuration boundaries
 MODEL_PATH = "best_lstm_weights.pth"
 VOCAB_SIZE = 3417  # Your verified MovieLens dataset vocabulary size
+
+# Load original MovieLens raw lookup dictionary directly into backend memory
+try:
+    movies_df = pd.read_csv(
+        'data/raw/movies.dat', 
+        sep='::', 
+        engine='python', 
+        names=['movie_id', 'title', 'genres'], 
+        encoding='latin-1'
+    )
+    # The trained model output IDs correspond to the literal row positions or original indices
+    RAW_MOVIE_LOOKUP = pd.Series(movies_df.title.values, index=movies_df.movie_id).to_dict()
+    print(f"[✓] Backend raw title dictionary loaded successfully: {len(RAW_MOVIE_LOOKUP)} entries.")
+except Exception as e:
+    print(f"[!] Warning: Could not load raw movies.dat in backend: {e}")
+    RAW_MOVIE_LOOKUP = {}
 
 # 1. Initialize the architecture shape and load frozen weights onto CPU
 try:
@@ -33,7 +50,7 @@ class RecommendationRequest(BaseModel):
 async def predict_next_movies(payload: RecommendationRequest):
     """
     Exposes an HTTP POST endpoint that takes a list of movie history tokens,
-    runs an isolated inference pass, and returns the top 5 recommendations.
+    runs an isolated inference pass, translates them to clean strings, and returns them.
     """
     if model is None:
         raise HTTPException(status_code=500, detail="Inference model weights asset is not initialized on server.")
@@ -65,10 +82,19 @@ async def predict_next_movies(payload: RecommendationRequest):
     # Extract attention weights, squeezing batch dims to map directly over the 50 steps
     attention_scores = attention_weights.squeeze(0).squeeze(-1).tolist()
     
+    # NEW STEP: Convert the model's raw token choices into clear, unshifted titles
+    # If a recommended token points directly to an index shift, look up its raw map pair
+    translated_recommendations = []
+    for token in recommended_ids:
+        # Check if it aligns with raw ID directly, fallback to string token if missing
+        title = RAW_MOVIE_LOOKUP.get(token, RAW_MOVIE_LOOKUP.get(token - 1, f"Movie ID: {token}"))
+        translated_recommendations.append(title)
+        
     # 7. Construct and return clean JSON response payload
     return {
         "input_history_depth": len(tokens),
         "recommended_tokens": recommended_ids,
+        "translated_recommendations": translated_recommendations, # Safe string fallback lane
         "attention_weights": attention_scores
     }
 
