@@ -85,7 +85,7 @@ trigger_inference = st.sidebar.button("🚀 Generate Recommendations", type="pri
 if trigger_inference:
     input_tokens = [title_to_id[title] for title in st.session_state.timeline_history if title in title_to_id]
     
-    backend_url = "http://127.0.0.1:8000/predict"
+    backend_url ="https://movie-rec-sys-3yj4.onrender.com/predict"
     payload = {"movie_history_tokens": input_tokens}
     
     try:
