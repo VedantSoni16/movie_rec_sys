@@ -23,19 +23,12 @@ st.markdown("---")
 
 
 # --- DYNAMIC VOCABULARY DATA LOADER LAYER ---
-@st.cache_data
 def load_movie_vocabulary():
     try:
-        # Read the raw MovieLens .dat file from its exact repository folder pathway
-        movies_df = pd.read_csv(
-            'data/raw/movies.dat', 
-            sep='::', 
-            engine='python', 
-            names=['movie_id', 'title', 'genres'], 
-            encoding='latin-1'
-        )
-        # Convert directly to a clean dictionary mapping: {ID: "Title (Year)"}
-        return pd.Series(movies_df.title.values, index=movies_df.movie_id).to_dict()
+        # Read the newly synchronized mapping csv file
+        df = pd.read_csv('data/raw/movie_to_tokens.csv')
+        # Map token_id directly as the key to ensure zero matrix drift!
+        return pd.Series(df.title.values, index=df.token_id).to_dict()
     except Exception as e:
         # Robust safety fallback network containing our primary animation cluster
         return {
@@ -64,7 +57,6 @@ st.sidebar.markdown("Define a strict chronological watch history sequence (oldes
 
 # Maintain an explicit list of selections cleanly via Session State variables
 if "timeline_history" not in st.session_state:
-    # Use animation titles as clean defaults since they exist in both full and fallback modes
     st.session_state.timeline_history = [
         "Aladdin (1992)", 
         "Bug's Life, A (1998)", 
@@ -77,7 +69,6 @@ if "timeline_history" not in st.session_state:
 # Render an explicit, numbered sequential track list for user clarity
 updated_history = []
 for idx, default_val in enumerate(st.session_state.timeline_history):
-    # Fallback to item 0 if a custom entry isn't found in current dictionary space
     start_idx = movie_options.index(default_val) if default_val in movie_options else 0
     
     val_choice = st.sidebar.selectbox(
@@ -120,15 +111,16 @@ if trigger_inference:
             
         if response.status_code == 200:
             data = response.json()
-            rec_tokens = data["recommended_tokens"]
             raw_weights = data["attention_weights"]
+            
+            # Extract the raw text titles array directly from the synchronized backend payload response
+            rec_titles = data.get("translated_recommendations", [])
             
             # Display Clean, Modern Recommendation Cards Section
             st.markdown('<div class="section-header">🔮 Model Next-Item Predictions (Top-5 Rank)</div>', unsafe_allow_html=True)
             cols = st.columns(5)
-            for i, token in enumerate(rec_tokens[:5]):
+            for i, title_string in enumerate(rec_titles[:5]):
                 with cols[i]:
-                    title_string = MOVIE_LOOKUP.get(token, f"Movie ID: {token}")
                     st.markdown(f"""
                         <div class="rec-card">
                             <span style="font-size:12px; color:#F63366; font-weight:bold; text-transform:uppercase;">Rank {i+1}</span>
