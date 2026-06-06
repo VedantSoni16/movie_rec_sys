@@ -261,6 +261,4 @@ Users can directly inspect which previous movies influenced each recommendation.
 
 ---
 
-## 📜 License
 
-This project is intended for educational and research purposes.
