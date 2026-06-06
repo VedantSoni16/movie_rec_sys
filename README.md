@@ -251,14 +251,6 @@ Users can directly inspect which previous movies influenced each recommendation.
 
 ---
 
-## 🔮 Future Improvements
 
-- Transformer-based sequential recommenders
-- Multi-head self-attention
-- Hybrid content + collaborative filtering
-- Real-time online learning
-- Implicit feedback integration
-
----
 
 
